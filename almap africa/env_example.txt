@@ -1,0 +1,6 @@
+destinatario=
+cc=
+
+# Caminhos
+planilha_baixada_path=
+planilha_final_path=

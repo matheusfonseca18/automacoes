@@ -1,0 +1,15 @@
+# caminhos
+planilha_baixada_path=
+planilha_final_path=
+
+# erro equipe
+destinatarios_equipe=
+cc_equipe=
+
+# Ocorrencias e Anunciantes em branco
+destinatarios_ocorrencias=
+cc_ocorrencias=
+
+# Indicadores e SLA
+destinatarios_indicador=
+cc_indicador=
