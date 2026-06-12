@@ -1,0 +1,8 @@
+# Caminhos
+planilha_baixada_path=
+planilha_final_path=
+planilha_colab=
+
+# Destinatários
+destinatarios_indicador=
+cc_indicador=

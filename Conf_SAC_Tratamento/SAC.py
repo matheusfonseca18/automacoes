@@ -96,8 +96,17 @@ print(f"|{Timestamp.now().strftime("%H:%M:%S")}| abrindo excel com xlwings")
 # Abrir o Excel xlwings
 # visible=False faz tudo em background, add_book=False evita abrir uma planilha em branco
 app = xw.App(visible=False, add_book=False)
-wb = app.books.open(planilha_final_path)
-ws = wb.sheets["BD Confirmação SAC - tratamento"]
+try:
+    wb = app.books.open(planilha_final_path)
+    ws = wb.sheets["BD Confirmação SAC - tratamento"]
+except Exception as e:
+    print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Erro ao abrir a planilha: {e}")
+    try:
+        app.quit()
+    except:
+        pass
+    
+    raise SystemExit(1)
 
 # Obter estrutura da Tabela (ListObject no Excel)
 # xlwings acessa a tabela diretamente pelo nome ou índice
