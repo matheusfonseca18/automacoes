@@ -5,8 +5,9 @@ from openpyxl.utils import range_boundaries, get_column_letter
 import win32com.client as win32
 from dotenv import load_dotenv
 import os
-
-print(f"Processo iniciado as {Timestamp.now().strftime('%H:%M:%S')}")
+import logging
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -17,6 +18,40 @@ cc = os.getenv("cc")
 planilha_baixada_path = os.getenv("planilha_baixada_path")
 planilha_final_path = os.getenv("planilha_final_path")
 
+# configuração do logger
+BASE_DIR = Path(__file__).resolve().parent
+
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_FILE = LOG_DIR / "almap_africa.log"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+handler = TimedRotatingFileHandler(
+    LOG_FILE,
+    when="midnight",
+    interval=1,
+    backupCount=30,
+    encoding="utf-8"
+)
+
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s",
+    datefmt="%d/%m/%Y %H:%M:%S"
+)
+
+handler.setFormatter(formatter)
+
+if not logger.handlers:
+    logger.addHandler(handler)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# funções
 def obter_estrutura_tabela(ws):
     tabela = ws.tables[list(ws.tables.keys())[0]]
     min_col, min_row, max_col, max_row = range_boundaries(tabela.ref)
@@ -43,9 +78,12 @@ def escrever_dados_excel(ws, df, min_col, min_row, max_col, colunas_data):
 
 def enviar_email(destinatario, cc):
     saudacao = "Bom dia, pessoal." if Timestamp.now().hour < 12 else "Boa tarde, pessoal."
-
-    outlook = win32.Dispatch('outlook.application')
-    mail = outlook.CreateItem(0)
+    try:
+        outlook = win32.Dispatch('outlook.application')
+        mail = outlook.CreateItem(0)
+    except Exception as e:
+        logger.exception(f"Erro ao criar instância do Outlook: {e}")
+        raise
 
     mail.Display()
     assinatura = mail.HtmlBody
@@ -63,11 +101,30 @@ def enviar_email(destinatario, cc):
     </div>
     """
     mail.Send()
+    logger.info(f"E-mail enviado\n"
+                f"Destinatário: {destinatario}\n"
+                f"CC: {cc}")
+
+logger.info("Processo iniciado")
 
 # Ler e processar dados
-df = pd.read_csv(planilha_baixada_path, encoding='latin1', sep=';')
+try:
+    df = pd.read_csv(planilha_baixada_path, encoding='latin1', sep=';')
+    logger.info("Arquivo CSV lido com sucesso")
+except Exception as e:
+    logger.exception(f"Erro ao ler o arquivo CSV: {e}")
+    raise
+
 df.columns = df.columns.str.strip()
-wb = load_workbook(planilha_final_path)
+logger.info(f"Registros encontrados: {len(df)}")
+
+try:
+    wb = load_workbook(planilha_final_path)
+    logger.info("Arquivo Excel lido com sucesso")
+except Exception as e:
+    logger.exception(f"Erro ao ler o arquivo Excel: {e}")
+    raise
+
 ws = wb.active
 info = obter_estrutura_tabela(ws)
 
@@ -87,11 +144,20 @@ escrever_dados_excel(ws, df, info["min_col"], info["max_row"] + 1, info["max_col
 nova_linha = info["max_row"] + len(df)
 info["tabela"].ref = f"{ws.cell(row=info['min_row'], column=info['min_col']).coordinate}:{ws.cell(row=nova_linha, column=info['max_col']).coordinate}"
 wb.save(planilha_final_path)
-print("Dados inseridos com sucesso!")
+logger.info(f"Linhas inseridas: {len(df)}")
 
 # Remover duplicados e reescrever
-df = pd.read_excel(planilha_final_path)
+try:
+    df = pd.read_excel(planilha_final_path)
+    logger.info("Removendo registros duplicados")
+except Exception as e:
+    logger.exception(f"Erro ao ler o arquivo Excel: {e}")
+    raise
+
+linhas_antes = len(df)
 df = df.drop_duplicates(subset=[c for c in df.columns if c != "Data Devolução"], keep='first')
+linhas_deletadas = linhas_antes - len(df)
+logger.info(f"Linhas duplicadas removidas: {linhas_deletadas}")
 df = df[headers]
 
 info = obter_estrutura_tabela(ws)
@@ -101,7 +167,8 @@ escrever_dados_excel(ws, df, info["min_col"], info["min_row"] + 1, info["max_col
 nova_linha = info["min_row"] + len(df)
 info["tabela"].ref = f"{get_column_letter(info['min_col'])}{info['min_row']}:{get_column_letter(info['max_col'])}{nova_linha}"
 wb.save(planilha_final_path)
+logger.info("Planilha salva")
 
 enviar_email(destinatario, cc)
 
-print(f"Processo finalizado as {Timestamp.now().strftime('%H:%M:%S')}")
+logger.info("Processo finalizado")
