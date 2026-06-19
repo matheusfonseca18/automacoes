@@ -6,7 +6,13 @@ import pyautogui as tec
 import time
 import os
 from dotenv import load_dotenv
+import logging
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
+import shutil
+from datetime import datetime
 
+# Carregar variáveis de ambiente
 load_dotenv()
 # Caminhos
 planilha_baixada_path = os.getenv("planilha_baixada_path")
@@ -16,10 +22,42 @@ planilha_colab = os.getenv("planilha_colab")
 destinatarios_indicador = os.getenv("destinatarios_indicador")
 cc_indicador = os.getenv("cc_indicador")
 
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Processo iniciado")
+# configuração do logger
+BASE_DIR = Path(__file__).resolve().parent
 
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_FILE = LOG_DIR / "indicador_class.log"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+handler = TimedRotatingFileHandler(
+    LOG_FILE,
+    when="midnight",
+    interval=1,
+    backupCount=30,
+    encoding="utf-8"
+)
+
+formatter = logging.Formatter(
+    "%(asctime)s | %(levelname)s | %(filename)s:%(lineno)d | %(message)s",
+    datefmt="%d/%m/%Y %H:%M:%S"
+)
+
+handler.setFormatter(formatter)
+
+if not logger.handlers:
+    logger.addHandler(handler)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# funções
 def atualizar_dados(caminho):
-    print(f"|{Timestamp.now().strftime("%H:%M:%S")}| Iniciando atualização de dados no Excel")
+    logger.info("Iniciando atualização de dados no Excel")
     excel = win32.Dispatch("Excel.Application")
     excel.Visible = False
 
@@ -31,17 +69,21 @@ def atualizar_dados(caminho):
 
         wb.Save()
         wb.Close()
-        print(f"|{Timestamp.now().strftime("%H:%M:%S")}| Dados atualizados com sucesso!")
+        logger.info("Dados atualizados com sucesso!")
     except Exception as e:
-        print(f"|{Timestamp.now().strftime("%H:%M:%S")}| Erro ao atualizar dados: {e}")
+        logger.exception(f"Erro ao atualizar dados: {e}")
+        raise
     finally:
         excel.Quit()
 
 def enviar_email(destinatario, cc):
     saudacao = "Bom dia, pessoal." if Timestamp.now().hour < 12 else "Boa tarde, pessoal."
-
-    outlook = win32.Dispatch('outlook.application')
-    mail = outlook.CreateItem(0)
+    try:
+        outlook = win32.Dispatch('outlook.application')
+        mail = outlook.CreateItem(0)
+    except Exception as e:
+        logger.exception(f"Erro as criar instância do Outlook: {e}")
+        raise
 
     mail.Display()
     assinatura = mail.HtmlBody
@@ -62,14 +104,49 @@ def enviar_email(destinatario, cc):
     mail.Display()
     time.sleep(3)
     tec.hotkey("ctrl", "enter")
+    logger.info(f"E-mail enviado\n"
+            f"Destinatário: {destinatario}\n"
+            f"CC: {cc}")
 
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Tranformando dados")
+logger.info("Processo iniciado")
 
-df_baixada = pd.read_excel(planilha_baixada_path, skiprows=1)
+# backup
+origem = Path(planilha_final_path)
+backup_dir = Path(planilha_baixada_path).parent / "backup_"
+backup_dir.mkdir(exist_ok=True)
+
+destino = backup_dir / f"{origem.stem}{datetime.now().strftime('_%Y-%m-%d_%H-%M')}{origem.suffix}"
+
+try:
+    shutil.copy2(origem, destino)
+    logger.info(f"Backup realizado com sucesso: {destino}")
+except Exception as e:
+    logger.exception(f"Erro ao realizar o backup: {e}")
+    raise
+
+backups = sorted(backup_dir.glob(f"{origem.stem}_*{origem.suffix}"),
+                reverse=True)
+
+for arquivo in backups[30:]:
+    arquivo.unlink()
+
+# ler e proicessar dados
+logger.info("Tranformando dados")
+try:
+    df_baixada = pd.read_excel(planilha_baixada_path, skiprows=1)
+    logger.info("Arquivo Excel (planilha baixada) lido com sucesso")
+except Exception as e:
+    logger.exception(f"Erro ao ler o arquivo Ecxel (planilha baixada): {e}")
+    raise
+
 df_baixada = df_baixada.drop(columns=["Nome Tela", "Versão AG"])
 df_baixada = df_baixada.drop(index=df_baixada[df_baixada.iloc[:, 3].isna()].index) # apaga a soma no fim da planilha
-
-df_colab = pd.read_excel(planilha_colab, sheet_name="Planilha1")
+try:
+    df_colab = pd.read_excel(planilha_colab, sheet_name="Planilha1")
+    logger.info("Arquivo Excel (planilha colaboradore) lido com sucesso")
+except Exception as e:
+    logger.exception(f"Erro ao ler o arquivo Ecxel (planilha colaboradores): {e}")
+    raise
 
 df_baixada.iloc[:, 3] = pd.to_datetime(df_baixada.iloc[:, 3]) # garabte q a coluna está no formato datetime para extrair mes e ano
 
@@ -86,12 +163,16 @@ df_baixada["CHAVE"] = (
     ) # resultado final: "NOME - JUN/26"
 )
 
-df_colab = df_colab.rename(
-    columns={
-        df_colab.columns[2]: "CHAVE",
-        df_colab.columns[3]: "EQUIPE"
-    }
-) # renomei as colunas na planilha de colab para facilitar o merge (n salva a alteração na planilha original)
+try:
+    df_colab = df_colab.rename(
+        columns={
+            df_colab.columns[2]: "CHAVE",
+            df_colab.columns[3]: "EQUIPE"
+        }
+    ) # renomei as colunas na planilha de colab para facilitar o merge (n salva a alteração na planilha original)
+except Exception as e:
+    logger.exception(f"Erro as renomear as colunas (planilha colaboradores: {e})")
+    raise
 
 df_baixada = df_baixada.merge(
     df_colab[["CHAVE", "EQUIPE"]],
@@ -108,7 +189,7 @@ for colab in fora:
     indices = df_baixada[df_baixada["Usuário"] == colab].index
 
     if (df_baixada.loc[indices, "EQUIPE"] == "Tratamento").any():
-        print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Colaborador '{colab}' é Assistente ou Líder e será removido.")
+        logger.info(f"Colaborador '{colab}' é Assistente ou Líder e será removido.")
         df_baixada = df_baixada.drop(index=indices)
     else:
         decisao = input(
@@ -118,17 +199,20 @@ for colab in fora:
         ).strip()
 
         if decisao == "2":
-            print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Colaborador '{colab}' removido")
             df_baixada = df_baixada.drop(index=indices)
+            logger.info(f"Colaborador '{colab}' removido")
         else:
-            print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Colaborador '{colab}' mantido.")
+            logger.info(f"Colaborador '{colab}' mantido.")
 
 fora = df_baixada[~df_baixada["EQUIPE"].isin(equipes_validas)]
 fora = fora["Usuário"].drop_duplicates().tolist()
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Colaboradores mantidos fora da equipe válidas: {fora}")
+if fora:
+    logger.info(f"Colaboradores mantidos fora da equipe válida: {fora}")
+else:
+    logger.info("Nenhum colaborador mantido fora da equipe válida")
 
 # ORDENANDO COLUNAS
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Ordenando dados")
+logger.info(f"Ordenando dados")
 df_ordenado = df_baixada.copy()
 
 colunas_ordenadas = ["Motivo Fechamento Tela", "ID", "Data Início", "Usuário"]
@@ -136,10 +220,14 @@ colunas_ordenadas = ["Motivo Fechamento Tela", "ID", "Data Início", "Usuário"]
 for colunas in colunas_ordenadas:
     df_ordenado = df_ordenado.sort_values(by=colunas, ascending=True, kind="stable")
 
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Abrindo planilha destino")
-app = xw.App(visible=False, add_book=False)
-wb = app.books.open(planilha_final_path)
-ws = wb.sheets["Sheet"]
+logger.info(f"Abrindo planilha destino")
+try:
+    app = xw.App(visible=False, add_book=False)
+    wb = app.books.open(planilha_final_path)
+    ws = wb.sheets["Sheet"]
+except Exception as e:
+    logger.exception(f"Erro ao abrir planilha destino com xlwings: {e}")
+    raise
 
 tabela_excel = ws.api.ListObjects(1)
 headers = [cell.Value for cell in tabela_excel.HeaderRowRange]
@@ -151,7 +239,7 @@ df_final = df_ordenado[colunas_presentes]
 ultima_linha_corpo = tabela_excel.Range.Rows.Count + tabela_excel.HeaderRowRange.Row
 
 # Colamos apenas os valores (index=False e header=False para não repetir o cabeçalho)
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Inserindo dados via xlwings")
+logger.info("Inserindo dados via xlwings")
 dados = [[""] * len(headers) for _ in range(len(df_ordenado))]
 
 for col in colunas_presentes:
@@ -162,12 +250,17 @@ for col in colunas_presentes:
 
 ws.range((ultima_linha_corpo, tabela_excel.Range.Column)).value = dados
 
-wb.save()
-wb.close()
-app.quit()
+try:
+    wb.save()
+    wb.close()
+except Exception as e:
+    logger.exception(f"Erro ao salvar planilha final com xlwings: {e}")
+    raise
+finally:
+    app.quit()
 
 atualizar_dados(planilha_final_path)
 
 enviar_email(destinatarios_indicador, cc_indicador)
 
-print(f"|{Timestamp.now().strftime('%H:%M:%S')}| Processo finalizado")
+logger.info("Processo finalizado")

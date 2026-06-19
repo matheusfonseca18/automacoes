@@ -8,12 +8,14 @@ import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+import time
+import shutil
+from datetime import datetime
 
 # Carregar variáveis de ambiente
 load_dotenv()
 destinatario = os.getenv("destinatario")
 cc = os.getenv("cc")
-
 #Caminhos
 planilha_baixada_path = os.getenv("planilha_baixada_path")
 planilha_final_path = os.getenv("planilha_final_path")
@@ -107,6 +109,36 @@ def enviar_email(destinatario, cc):
 
 logger.info("Processo iniciado")
 
+# verifica se o arquivo está aberto
+arquivo = Path(planilha_final_path)
+
+lock_file = arquivo.parent / f"~${arquivo.name}"
+
+if lock_file.exists():
+    logger.info("Planilha está aberta por alguém, tente executar mais tarde.")
+    exit()
+else:
+    logger.info("Planilha não está aberta por ninguém, processo seguirá.")
+
+# backup
+origem = Path(planilha_final_path)
+backup_dir = Path(planilha_baixada_path).parent / "backup_"
+backup_dir.mkdir(exist_ok=True)
+
+destino = backup_dir / f"{origem.stem}{datetime.now().strftime('_%Y-%m-%d_%H-%M')}{origem.suffix}"
+
+try:
+    shutil.copy2(origem, destino)
+    logger.info(f"Backup realizado com sucesso: {destino}")
+except Exception as e:
+    logger.exception(f"Erro ao realizar backup: {e}")
+
+backups = sorted(backup_dir.glob(f"{origem.stem}_*{origem.suffix}"),
+                 reverse=True)
+
+for arquivo in backups[30:]:
+    arquivo.unlink()
+
 # Ler e processar dados
 try:
     df = pd.read_csv(planilha_baixada_path, encoding='latin1', sep=';')
@@ -166,9 +198,19 @@ escrever_dados_excel(ws, df, info["min_col"], info["min_row"] + 1, info["max_col
 
 nova_linha = info["min_row"] + len(df)
 info["tabela"].ref = f"{get_column_letter(info['min_col'])}{info['min_row']}:{get_column_letter(info['max_col'])}{nova_linha}"
-wb.save(planilha_final_path)
-logger.info("Planilha salva")
 
-enviar_email(destinatario, cc)
+for tentativa in range(5):
+    try:
+        wb.save(planilha_final_path)
+        logger.info("Planilha salva")
+        enviar_email(destinatario, cc)
+        logger.info("Processo finalizado")
+        break
 
-logger.info("Processo finalizado")
+    except Exception as e:
+        logger.exception(f"Erro ao salvar o arquivo Excel: {e}")
+        logger.info(f"Tentativa {tentativa + 1}/5 - arquivo bloqueado")
+        time.sleep(10)
+
+else:    
+    raise Exception("Não foi possível salvar a planilha após 5 tentativas.")
