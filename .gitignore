@@ -1,7 +1,13 @@
 .venv
 .vscode
 .env
+__pycache__
 novo
 atualizar_BI.py
 notify.py
 logs
+arq.py
+caminho.py
+automacao_mouse.py
+captura_cursor.py
+logs.py

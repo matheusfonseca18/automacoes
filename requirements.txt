@@ -1,0 +1,17 @@
+colorama==0.4.6
+customtkinter==5.2.2
+debugpy==1.8.20
+ipykernel==7.2.0
+ipython==9.13.0
+jupyter_client==8.8.0
+jupyter_core==5.9.1
+openpyxl==3.1.5
+pandas==3.0.2
+plyer==2.1.0
+PyAutoGUI==0.9.54
+pytesseract==0.3.13
+python-dotenv==1.2.2
+pywin32==311
+winotify==1.1.0
+xlsxwriter==3.2.9
+xlwings==0.35.2

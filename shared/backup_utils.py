@@ -21,3 +21,5 @@ def fazer_backup(arq_origem, loc_destino, logger, manter=30):
 
     for arquivo in backups[manter:]:
         arquivo.unlink()
+        logger.info(f"Backup removido: {arquivo}")
+        

@@ -12,6 +12,8 @@ import time
 import shutil
 from datetime import datetime
 
+inicio = time.perf_counter()
+
 # Carregar variáveis de ambiente
 load_dotenv()
 destinatario = os.getenv("destinatario")
@@ -92,11 +94,11 @@ def enviar_email(destinatario, cc):
 
     mail.to = destinatario
     mail.CC = cc
-    mail.Subject = "Relatório SAC controle - agências Almap e África"
+    mail.Subject = "Relatório SAC controle - Agências ALMAP BBDO, AFRICA, DPZ e MEDIABRANDS"
 
     mail.HtmlBody = Rf"""<div style="font-family: tahoma; font-size: 11pt">
         <p>{saudacao}</p>
-        <p>A planilha com os questionamentos sac (Almap e Africa), estão atualizados com dados até {Timestamp.now().strftime('%d/%m/%Y')}</p>
+        <p>A planilha com os questionamentos SAC (ALMAP BBDO, AFRICA, DPZ e MEDIABRANDS), está atualizada com dados até {Timestamp.now().strftime('%d/%m/%Y')}</p>
         <p>Arquivo: <a href="file:///\\Brmdfs05sp-fs.grupoibope.corp\groups\Monitor\ColetaTV\Tratamento Coleta TV\2026\AUXILIARES\Relatorio sac controle 2026 - agencias Almap e Africa.xlsx">G:\Monitor\ColetaTV\Tratamento Coleta TV‚6\AUXILIARES\Relatorio sac controle 2026 - agencias Almap e Africa.xlsx</a></p>
         <p style="font-family: tahoma; font-size: 9pt; color: #555;"><i>E-mail enviado automaticamente.</i></p>
         {assinatura}
@@ -203,8 +205,8 @@ for tentativa in range(5):
     try:
         wb.save(planilha_final_path)
         logger.info("Planilha salva")
-        enviar_email(destinatario, cc)
-        logger.info("Processo finalizado")
+        # enviar_email(destinatario, cc)
+        logger.info(f"Processo finalizado. {time.perf_counter()-inicio:.2f}s")
         break
 
     except Exception as e:

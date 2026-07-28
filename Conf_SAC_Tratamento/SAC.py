@@ -9,6 +9,9 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 import shutil
 from datetime import datetime
+import time
+
+inicio_geral = time.perf_counter()
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -117,7 +120,7 @@ def atualizar_dados(caminho):
         try:
             excel.Quit()
         except Exception as e:
-            logger.exceptoin(f"Erro ao fechar Excel: {e}")
+            logger.exception(f"Erro ao fechar Excel: {e}")
 
 logger.info('Processo iniciado')
 
@@ -158,6 +161,7 @@ else: # E-mail ocorrencias
      df_csv = df_csv.dropna(subset=["Ocorrência"]) # apagar ocorrencias em branco
      logger.info("Ocorrências em branco removidas")
 
+inicio = time.perf_counter()
 logger.info("Abrindo excel com xlwings")
 # Abrir o Excel xlwings
 # visible=False faz tudo em background, add_book=False evita abrir uma planilha em branco
@@ -165,6 +169,12 @@ app = xw.App(visible=False, add_book=False)
 try:
     wb = app.books.open(planilha_final_path)
     ws = wb.sheets["BD Confirmação SAC - tratamento"]
+    app.screen_updating = False
+    app.display_alerts = False
+
+    app.api.EnableEvents = False
+    app.api.Calculation = -4135  # Manual
+    logger.info(f"Planilha aberta com Xlwings {time.perf_counter()-inicio:.2f}s")
 except Exception as e:
     logger.info(f"Erro ao abrir a planilha: {e}")
     try:
@@ -176,6 +186,7 @@ except Exception as e:
 
 # Obter estrutura da Tabela (ListObject no Excel)
 # xlwings acessa a tabela diretamente pelo nome ou índice
+inicio = time.perf_counter()
 tabela_excel = ws.api.ListObjects(1) # Pega a primeira tabela da aba
 headers = [cell.Value for cell in tabela_excel.HeaderRowRange]
 
@@ -194,27 +205,53 @@ for col_name in df_csv.columns:
                 df_csv[col_name] = df_csv[col_name].astype(str).str.replace(sigla, f"01/{num}", case=False, regex=False)
         
         df_csv[col_name] = pd.to_datetime(df_csv[col_name], errors='coerce', dayfirst=True, format='mixed')
+logger.info(f"Estrutura da tabela obtida e colunas de data convertidas {time.perf_counter()-inicio:.2f}s")
 
 # Inserir dados no final da tabela
+inicio = time.perf_counter()
 logger.info("Inserindo dados via xlwings")
 ultima_linha_corpo = tabela_excel.Range.Rows.Count + tabela_excel.HeaderRowRange.Row
 
 # Colamos apenas os valores (index=False e header=False para não repetir o cabeçalho)
 ws.range(f"A{ultima_linha_corpo}").options(pd.DataFrame, index=False, header=False).value = df_csv
+logger.info(f"Dados inseridos via xlwings {time.perf_counter()-inicio:.2f}s")
 
 # Salvar e Fechar
-logger.info("Salvando e fechando planilha")
 try:
+    inicio = time.perf_counter()
+    app.api.Calculation = -4105  # Automático
+    app.api.Calculate()
+    logger.info(f"Cálculo automático realizado {time.perf_counter()-inicio:.2f}s")
+
+    inicio = time.perf_counter()
+    wb_api = wb.api
+
+    logger.info("Iniciando atualização")
+    wb_api.RefreshAll()
+
+    app.api.CalculateUntilAsyncQueriesDone()
+
+    logger.info(f"Atualização finalizada {time.perf_counter()-inicio:.2f}s")
+
+    inicio = time.perf_counter()
+    logger.info("Salvando resultado final")
     wb.save()
-    wb.close()
+
     logger.info("Planilha salva")
+    logger.info(f"Tempo de salvamento final: {time.perf_counter()-inicio:.2f}s")
 except Exception as e:
     logger.exception(f"Erro ao salvar a planilha: {e}")
     raise
 finally:
+    try:
+        app.api.EnableEvents = True
+    except:
+        pass
+    wb.close()
     app.quit()
 
-logger.info("Dados inseridos via xlwings com sucesso!")
+logger.info("Iniciando envio de e-mails")
+inicio = time.perf_counter()
 
 try:
     df_final = pd.read_excel(planilha_final_path, sheet_name="BD Confirmação SAC - tratamento")
@@ -238,8 +275,6 @@ if not df_anunciante.empty: # E-mail anunciante
 else:
     logger.info("Nenhuma linha com Anunciante AG em branco ou #N/D encontrada.")
 
-atualizar_dados(planilha_final_path)
-
 try:
     df_sla = pd.read_excel(planilha_final_path, sheet_name="Area").loc[2:9, "Unnamed: 201":f"Unnamed: {201+int(Timestamp.now().strftime('%m'))+1}"].fillna("")
 except Exception as e:
@@ -259,4 +294,6 @@ enviar_email(destinatarios_indicador, cc_indicador, "SLA - Confirmação SAC", f
 # e-mail indicador
 enviar_email(destinatarios_indicador, cc_indicador, "Indicador confirmação SAC - Tratamento", rf"O indicador de confirmação SAC está atualizado até {domingo}.<br><br><a href='https://adgbl.sharepoint.com/:x:/s/Relatriosgerenciais/IQAix4IxFd9oRJWoMkCYHeJlAYaJ_NBHG2V2hAQJuPERPW8?e=flab6c&xsdata=MDV8MDJ8bWF0aGV1cy5waW50b0BpYm9wZS5jb218ZmE3YmEyZTM4YWVmNGU5ZTU5MmIwOGRlOTU3NjFhYWR8YjI3NjcyNDFmYWI1NDU0YjhiNjJmNjMyNDY1MGUzMTZ8MHwwfDYzOTExMjUzMTYzODU5NjgyNHxVbmtub3dufFRXRnBiR1pzYjNkOGV5SkZiWEIwZVUxaGNHa2lPblJ5ZFdVc0lsWWlPaUl3TGpBdU1EQXdNQ0lzSWxBaU9pSlhhVzR6TWlJc0lrRk9Jam9pVFdGcGJDSXNJbGRVSWpveWZRPT18MHx8fA%3d%3d&sdata=ZDBWdElnTzhaZStMajMyTVozTFR0K2hBdEU3eHBwd2ZqZ3h6NWZmaFUvWT0%3d'>  Confirmação SAC - tratamento 2026.xlsx</a>", None)
 
-logger.info('Processo finalizado.')
+logger.info(f"E-mails enviados {time.perf_counter()-inicio:.2f}s")
+
+logger.info(f'Processo finalizado. {time.perf_counter()-inicio_geral:.2f}s')
