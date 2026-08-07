@@ -119,7 +119,6 @@ def executar(logger):
         raise
 
     df.columns = df.columns.str.strip()
-    logger.info(f"Registros encontrados: {len(df)}")
 
     try:
         wb = load_workbook(planilha_final_path)
@@ -130,17 +129,23 @@ def executar(logger):
 
     ws = wb.active
     info = obter_estrutura_tabela(ws)
+    linhas_final_antes = len(wb.worksheets[0]['A'])
 
     headers = info["headers"]
     colunas_data = info["colunas_data"]
-    colunas_data_idx = set(colunas_data.keys())
+
+    meses_pt = {'jan':'01','fev':'02','mar':'03','abr':'04','mai':'05','jun':'06',
+                'jul':'07','ago':'08','set':'09','out':'10','nov':'11','dez':'12'}
 
     # Garantir ordem e converter datas
-    df = df[headers]
-    for j in colunas_data_idx:
-        col_name = headers[j]
-        if col_name in df.columns:
-            df[col_name] = pd.to_datetime(df[col_name], format='mixed', dayfirst=True, errors='coerce')
+    for col_name in df.columns:
+        # Verificação para identificar colunas de data pelos nomes conhecidos (testar se é necessário)
+        if "data" in col_name.lower() or "mês" in col_name.lower() or "veiculação" in col_name.lower():
+            if col_name == "Mês Veiculação":
+                for sigla, num in meses_pt.items():
+                    df[col_name] = df[col_name].astype(str).str.replace(sigla, f"01/{num}", case=False, regex=False)
+            
+            df[col_name] = pd.to_datetime(df[col_name], errors='coerce', dayfirst=True, format='mixed')
 
     # Inserir novos dados
     escrever_dados_excel(ws, df, info["min_col"], info["max_row"] + 1, info["max_col"], colunas_data)
@@ -169,6 +174,9 @@ def executar(logger):
 
     nova_linha = info["min_row"] + len(df)
     info["tabela"].ref = f"{get_column_letter(info['min_col'])}{info['min_row']}:{get_column_letter(info['max_col'])}{nova_linha}"
+
+    linhas_final_depois = len(wb.worksheets[0]['A'])
+    logger.info(f"Linhas novas: {linhas_final_depois - linhas_final_antes}")
 
     for tentativa in range(5):
         try:

@@ -55,13 +55,41 @@ def executar_Indicador_class():
             )
 
             limpar_textbox(textbox_log)
-            indicador_class(logger)
+            indicador_class(logger, perguntar_colaborador)
         
         finally:
             pythoncom.CoUninitialize()
             root.after(0, lambda: alterar_estado_botao(True))
 
     Thread(target=tarefa, daemon=True).start()
+
+def perguntar_colaborador(nome):
+    janela = ctk.CTkToplevel(root)
+    janela.title("Colaborador inválido")
+    janela.geometry("450x180")
+    janela.grab_set()
+
+    resposta = {"valor": None}
+
+    ctk.CTkLabel(
+        janela,
+        text=f"O colaborador '{nome}' está fora da equipe válida.\nO que deseja fazer?"
+    ).pack(pady=20)
+
+    def manter():
+        resposta["valor"] = True
+        janela.destroy()
+
+    def remover():
+        resposta["valor"] = False
+        janela.destroy()
+
+    ctk.CTkButton(janela, text="Manter", command=manter).pack(pady=5)
+    ctk.CTkButton(janela, text="Remover", command=remover).pack(pady=5)
+
+    janela.wait_window()
+
+    return resposta["valor"]
 
 BASE_DIR = Path(__file__).resolve().parent
 

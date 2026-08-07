@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 
-def executar(logger):
+def executar(logger, perguntar_colaborador):
 
     inicio_geral = time.perf_counter()
 
@@ -141,18 +141,15 @@ def executar(logger):
         if (df_baixada.loc[indices, "EQUIPE"] == "Tratamento").any():
             logger.info(f"Colaborador '{colab}' é Assistente ou Líder e será removido.")
             df_baixada = df_baixada.drop(index=indices)
-        else:
-            decisao = input(
-                f"|{Timestamp.now().strftime('%H:%M:%S')}| Colaborador com equipe inválida: '{colab}'\n"
-                f"[1] manter\n"
-                f"[2] remover\n"
-            ).strip()
 
-            if decisao == "2":
+        else:
+            decisao = perguntar_colaborador(colab)
+
+            if decisao:
+                logger.info(f"Colaborador '{colab}' mantido.")
+            else:
                 df_baixada = df_baixada.drop(index=indices)
                 logger.info(f"Colaborador '{colab}' removido")
-            else:
-                logger.info(f"Colaborador '{colab}' mantido.")
 
     fora = df_baixada[~df_baixada["EQUIPE"].isin(equipes_validas)]
     fora = fora["Usuário"].drop_duplicates().tolist()
