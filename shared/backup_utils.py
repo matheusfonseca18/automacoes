@@ -2,9 +2,9 @@ from pathlib import Path
 import shutil
 from datetime import datetime
 
-def fazer_backup(arq_origem, loc_destino, logger, manter=30):
+def fazer_backup(arq_origem, local_destino, logger, manter=30):
     origem = Path(arq_origem)
-    backup_dir = Path(loc_destino).parent / "backup_"
+    backup_dir = Path(local_destino).parent / "backup_"
     backup_dir.mkdir(exist_ok=True)
 
     destino = backup_dir / f"{origem.stem}{datetime.now().strftime('_%Y-%m-%d_%H-%M')}{origem.suffix}"

@@ -6,8 +6,7 @@ import time
 import os
 from dotenv import load_dotenv
 from pathlib import Path
-import shutil
-from datetime import datetime
+from shared.backup_utils import fazer_backup
 
 def executar(logger, perguntar_colaborador):
 
@@ -18,7 +17,8 @@ def executar(logger, perguntar_colaborador):
     # Caminhos
     base = Path(os.environ["OneDrive"])
     planilha_baixada_path = base / os.getenv("baixada_montar")
-    planilha_final_path = base / os.getenv("final_montar")
+    # planilha_final_path = base / os.getenv("final_montar")
+    planilha_final_path = os.getenv("final_local")
     planilha_colab = base / os.getenv("colab_montar")
     # Destinatários
     destinatarios_indicador = os.getenv("destinatarios_indicador")
@@ -34,9 +34,6 @@ def executar(logger, perguntar_colaborador):
             logger.exception(f"Erro as criar instância do Outlook: {e}")
             raise
 
-        mail.Display()
-        assinatura = mail.HtmlBody
-
         mail.to = destinatario
         mail.CC = cc
         mail.Subject = "Indicador de Classificação - 2026"
@@ -47,10 +44,9 @@ def executar(logger, perguntar_colaborador):
             <p>Arquivo: <a href="https://adgbl.sharepoint.com/:x:/r/sites/Relatriosgerenciais/Arquivos/2026/Analises/Classifica%C3%A7%C3%A3o/Indicador - classifica%C3%A7%C3%A3o 2026.xlsx?d=w760aea90c357485589274b4504d94c34&csf=1&web=1&e=8rjrfK&xsdata=MDV8MDJ8bWF0aGV1cy5waW50b0BpYm9wZS5jb218MDc3ZDczNDFhMGQ5NGJhM2FlM2QwOGRlOTRiM2Q0YmR8YjI3NjcyNDFmYWI1NDU0YjhiNjJmNjMyNDY1MGUzMTZ8MHwwfDYzOTExMTY5NzI1Nzk4MTI4OHxVbmtub3dufFRXRnBiR1pzYjNkOGV5SkZiWEIwZVUxaGNHa2lPblJ5ZFdVc0lsWWlPaUl3TGpBdU1EQXdNQ0lzSWxBaU9pSlhhVzR6TWlJc0lrRk9Jam9pVFdGcGJDSXNJbGRVSWpveWZRPT18MHx8fA%3d%3d&sdata=QlpMbitCVUtmelAwcUIxQU5rTXpXZjNETnpuWE9Vb3lhR3dGaHQwT2hCbz0%3d" target="_blank" rel="noopener noreferrer">Indicador - classificação 2026.xlsx</a></p>
             <p>Para acessar o arquivo, acesse via desktop.</p>
             <p style="font-family: tahoma; font-size: 9pt; color: #555;"><i>E-mail enviado automaticamente.</i></p>
-            {assinatura}
         </div>
         """
-        mail.Send()
+        mail.Send() 
         logger.info(f"E-mail enviado\n"
                 f"Destinatário: {destinatario}\n"
                 f"CC: {cc}")
@@ -58,24 +54,7 @@ def executar(logger, perguntar_colaborador):
     logger.info("Processo iniciado")
 
     # backup
-    origem = Path(planilha_final_path)
-    backup_dir = Path(planilha_baixada_path).parent / "backup_"
-    backup_dir.mkdir(exist_ok=True)
-
-    destino = backup_dir / f"{origem.stem}{datetime.now().strftime('_%Y-%m-%d_%H-%M')}{origem.suffix}"
-
-    try:
-        shutil.copy2(origem, destino)
-        logger.info(f"Backup realizado com sucesso: {destino}")
-    except Exception as e:
-        logger.exception(f"Erro ao realizar o backup: {e}")
-        raise
-
-    backups = sorted(backup_dir.glob(f"{origem.stem}_*{origem.suffix}"),
-                    reverse=True)
-
-    for arquivo in backups[30:]:
-        arquivo.unlink()
+    fazer_backup(planilha_final_path, planilha_baixada_path, logger)
 
     # ler e proicessar dados
     logger.info("Tranformando dados")

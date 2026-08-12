@@ -9,6 +9,7 @@ from pathlib import Path
 import time
 import shutil
 from datetime import datetime
+from shared.backup_utils import fazer_backup
 
 def executar(logger):
 
@@ -91,25 +92,8 @@ def executar(logger):
         logger.info("Planilha não está aberta por ninguém, processo seguirá.")
 
     # backup
-    origem = Path(planilha_final_path)
-    backup_dir = Path(planilha_baixada_path).parent / "backup_"
-    backup_dir.mkdir(exist_ok=True)
-
-    destino = backup_dir / f"{origem.stem}{datetime.now().strftime('_%Y-%m-%d_%H-%M')}{origem.suffix}"
-
-    try:
-        shutil.copy2(origem, destino)
-        logger.info(f"Backup realizado com sucesso: {destino}")
-    except Exception as e:
-        logger.exception(f"Erro ao realizar backup: {e}")
-        raise
-
-    backups = sorted(backup_dir.glob(f"{origem.stem}_*{origem.suffix}"),
-                    reverse=True)
-
-    for arquivo in backups[30:]:
-        arquivo.unlink()
-
+    fazer_backup(planilha_final_path, planilha_baixada_path, logger)
+    
     # Ler e processar dados
     try:
         df = pd.read_csv(planilha_baixada_path, encoding='latin1', sep=';')
