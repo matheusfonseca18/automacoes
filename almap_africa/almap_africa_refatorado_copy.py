@@ -3,12 +3,10 @@ from pandas import Timestamp
 from openpyxl import load_workbook
 from openpyxl.utils import range_boundaries, get_column_letter
 import win32com.client as win32
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 import os
 from pathlib import Path
 import time
-import shutil
-from datetime import datetime
 from shared.backup_utils import fazer_backup
 
 def executar(logger):
@@ -16,13 +14,18 @@ def executar(logger):
     inicio = time.perf_counter()
 
     # Carregar variáveis de ambiente
-    load_dotenv()
-    destinatario = os.getenv("destinatario")
-    cc = os.getenv("cc")
+    BASE_DIR = Path(__file__).resolve().parent
+
+    config = dotenv_values(BASE_DIR / ".env")
+    
     #Caminhos
     base = Path(os.environ["OneDrive"]) # acha o caminho variável do OneDrive
-    planilha_baixada_path = base / os.getenv("baixada_montar")
-    planilha_final_path = os.getenv("planilha_final_path") # caminho final na rede
+
+    planilha_baixada_path = base / config["baixada_montar"]
+    planilha_final_path = config["planilha_final_path"] # caminho final na rede
+
+    destinatario = config["destinatario"]
+    cc = config["cc"]
 
     # funções
     def obter_estrutura_tabela(ws):

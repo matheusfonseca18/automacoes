@@ -4,7 +4,7 @@ import win32com.client as win32
 import xlwings as xw
 import time
 import os
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from pathlib import Path
 from shared.backup_utils import fazer_backup
 
@@ -13,16 +13,21 @@ def executar(logger, perguntar_colaborador):
     inicio_geral = time.perf_counter()
 
     # Carregar variáveis de ambiente
-    load_dotenv()
+    BASE_DIR = Path(__file__).resolve().parent
+
+    config = dotenv_values(BASE_DIR / ".env")
+
     # Caminhos
     base = Path(os.environ["OneDrive"])
-    planilha_baixada_path = base / os.getenv("baixada_montar")
-    # planilha_final_path = base / os.getenv("final_montar")
-    planilha_final_path = os.getenv("final_local")
-    planilha_colab = base / os.getenv("colab_montar")
+
+    planilha_baixada_path = base / config["baixada_montar"]
+    # planilha_final_path = base / config["final_montar"]
+    planilha_final_path = config["final_local"]
+    planilha_colab = base / config["colab_montar"]
+
     # Destinatários
-    destinatarios_indicador = os.getenv("destinatarios_indicador")
-    cc_indicador = os.getenv("cc_indicador")
+    destinatarios_indicador = config["destinatarios_indicador"]
+    cc_indicador = config["cc_indicador"]
 
     # funções
     def enviar_email(destinatario, cc):
@@ -235,6 +240,6 @@ def executar(logger, perguntar_colaborador):
         app.quit()
         logger.info(f"Fechar: {time.perf_counter()-inicio:.2f}s")
 
-    enviar_email(destinatarios_indicador, cc_indicador)
+    #enviar_email(destinatarios_indicador, cc_indicador)
 
     logger.info(f"Processo finalizado: {time.perf_counter()-inicio_geral:.2f}s")

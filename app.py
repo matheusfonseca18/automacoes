@@ -8,6 +8,8 @@ from Indicador_class.indicador_class_copy_2 import executar as indicador_class
 from shared.logger_utils import get_logger, TextboxHandler
 
 # Funções
+automacao_em_execucao = False
+
 def alterar_estado_botao(habilitado: bool):
     estado = "normal" if habilitado else "disabled"
 
@@ -20,8 +22,14 @@ def limpar_textbox(textbox):
     textbox.delete("1.0", tk.END)
 
 def executar_almap_africa():
+    global automacao_em_execucao
 
+    if automacao_em_execucao:
+        return
+    
+    automacao_em_execucao = True
     alterar_estado_botao(False)
+    limpar_textbox(textbox_log)
 
     def tarefa():
         try:
@@ -32,18 +40,30 @@ def executar_almap_africa():
                 extra_handlers=[textbox_handler]
             )
 
-            limpar_textbox(textbox_log)
             almap_africa(logger)
         
         finally:
             pythoncom.CoUninitialize()
-            root.after(0, lambda: alterar_estado_botao(True))
+            
+            def finalizar():
+                global automacao_em_execucao
+                automacao_em_execucao = False
+                alterar_estado_botao(True)
+
+            root.after(0, finalizar)
 
     Thread(target=tarefa, daemon=True).start()
 
 def executar_Indicador_class():
 
+    global automacao_em_execucao
+
+    if automacao_em_execucao:
+        return
+
+    automacao_em_execucao = True
     alterar_estado_botao(False)
+    limpar_textbox(textbox_log)
 
     def tarefa():
         try:
@@ -54,12 +74,17 @@ def executar_Indicador_class():
                 extra_handlers=[textbox_handler]
             )
 
-            limpar_textbox(textbox_log)
             indicador_class(logger, perguntar_colaborador)
         
         finally:
             pythoncom.CoUninitialize()
-            root.after(0, lambda: alterar_estado_botao(True))
+
+            def finalizar():
+                global automacao_em_execucao
+                automacao_em_execucao = False
+                alterar_estado_botao(True)
+
+            root.after(0, finalizar)
 
     Thread(target=tarefa, daemon=True).start()
 
