@@ -21,8 +21,8 @@ def executar(logger, perguntar_colaborador):
     base = Path(os.environ["OneDrive"])
 
     planilha_baixada_path = base / config["baixada_montar"]
-    # planilha_final_path = base / config["final_montar"]
-    planilha_final_path = config["final_local"]
+    planilha_final_path = base / config["final_montar"]
+    # planilha_final_path = config["final_local"]
     planilha_colab = base / config["colab_montar"]
 
     # Destinatários
@@ -240,6 +240,6 @@ def executar(logger, perguntar_colaborador):
         app.quit()
         logger.info(f"Fechar: {time.perf_counter()-inicio:.2f}s")
 
-    #enviar_email(destinatarios_indicador, cc_indicador)
+    enviar_email(destinatarios_indicador, cc_indicador)
 
     logger.info(f"Processo finalizado: {time.perf_counter()-inicio_geral:.2f}s")

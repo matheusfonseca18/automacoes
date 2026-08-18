@@ -26,6 +26,10 @@ def get_logger(nome_arquivo, pasta_logs, extra_handlers=None):
             backupCount=30,
             encoding="utf-8"
         )
+
+        file_handler.suffix = "%Y-%m-%d"
+        file_handler.namer = lambda name: name.replace(".log.", "-") + ".log"
+
         file_handler.setFormatter(formatter)
 
         console_handler = logging.StreamHandler()
